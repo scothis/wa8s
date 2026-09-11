@@ -10,6 +10,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.7
 	github.com/google/go-containerregistry/pkg/authn/k8schain v0.0.0-20250115185438-c4dd792fa06c
+	github.com/samyfodil/wazy v0.3.0
 	github.com/stoewer/go-strcase v1.3.1
 	github.com/tetratelabs/wazero v1.12.0
 	k8s.io/api v0.36.2

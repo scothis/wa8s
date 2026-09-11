@@ -21,15 +21,24 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"sync"
 
 	extism "github.com/extism/go-sdk"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/samyfodil/wazy"
+	"github.com/samyfodil/wazy/component"
 	"github.com/tetratelabs/wazero"
 
 	componentsv1alpha1 "reconciler.io/wa8s/apis/components/v1alpha1"
 )
+
+var runtime wazy.Runtime
+var compileCache *component.CompileCache
+
+func init() {
+	runtime = wazy.NewRuntime(context.Background())
+	compileCache = component.NewCompileCache()
+}
 
 //go:embed wit-tools.wasm
 var witToolsWasm []byte
@@ -54,37 +63,30 @@ func ExtractWIT(ctx context.Context, component []byte) (_ string, err error) {
 
 //go:embed static-config.wasm
 var staticConfigWasm []byte
-var staticConfigPool = bootstrapPool(staticConfigWasm, "static-config.wasm")
 
 func ComponentizeConfigStore(ctx context.Context, config map[string]string) (_ []byte, err error) {
+	inst, err := component.Instantiate(ctx, runtime, staticConfigWasm, component.WithCompileCache(compileCache))
+	if err != nil {
+		panic(fmt.Errorf("instantiate static-config: %s", err))
+	}
 	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("panic calling ComponentizeConfigStore: %s", r)
-		}
+		err = inst.Close(ctx)
 	}()
 
-	plugin := staticConfigPool.Get().(*extism.Plugin)
-	defer staticConfigPool.Put(plugin)
-
-	c := [][]string{}
-
-	for k, v := range config {
-		c = append(c, []string{k, v})
+	values := []component.Value{}
+	for key, value := range config {
+		values = append(values, []component.Value{key, value})
 	}
-	sort.Slice(c, func(i, j int) bool {
-		return c[i][0] < c[j][0]
-	})
 
-	bytes, err := json.Marshal(c)
+	got, err := inst.CallExport(ctx, "componentized:config/factory", "build-component", values)
 	if err != nil {
-		return nil, err
+		panic(fmt.Errorf("call static-config: %w", err))
 	}
-	_, component, err := plugin.CallWithContext(ctx, "build_component", bytes)
-	if err != nil {
-		return nil, err
+	result := got[0].(component.ResultValue)
+	if result.IsErr {
+		return nil, fmt.Errorf("call static-config: %s", result.Payload)
 	}
-
-	return component, nil
+	return result.Payload.([]byte), nil
 }
 
 //go:embed wac.wasm

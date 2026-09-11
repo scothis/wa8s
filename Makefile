@@ -77,9 +77,8 @@ lint-fix: ## Run golangci-lint linter and perform fixes
 .PHONY: components
 components: components/static-config.wasm components/wac.wasm components/wit-tools.wasm
 
-components/static-config.wasm: $(shell find components/static-config -type f) Cargo.toml
-	cargo build -p static-config-extism --release --target wasm32-unknown-unknown
-	@cp target/wasm32-unknown-unknown/release/static_config_extism.wasm components/static-config.wasm
+components/static-config.wasm:
+	wkg oci pull ghcr.io/componentized/static-config/factory:0.2.0 -o components/static-config.wasm
 
 components/wit-tools.wasm: $(shell find components/wit-tools -type f) Cargo.toml
 	cargo build -p wit-tools --release --target wasm32-unknown-unknown
